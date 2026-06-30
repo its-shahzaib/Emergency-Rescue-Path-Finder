@@ -1,0 +1,369 @@
+# Emergency Rescue Path Finder
+# Mini Project for AI/ML Internship
+
+from collections import deque
+import heapq
+
+
+# -------------------------------
+# City Graph / Map
+# -------------------------------
+# Dictionary is used to store city locations and road distances
+city_graph = {
+    "Rescue_Station": {
+        "Hospital": 4,
+        "Main_Road": 3,
+        "Fire_Station": 6
+    },
+
+    "Hospital": {
+        "Rescue_Station": 4,
+        "Police_Station": 3,
+        "Bridge": 4,
+        "Accident_Spot": 9
+    },
+
+    "Main_Road": {
+        "Rescue_Station": 3,
+        "Market": 4,
+        "School": 5
+    },
+
+    "Fire_Station": {
+        "Rescue_Station": 6,
+        "Market": 3,
+        "Police_Station": 4
+    },
+
+    "Market": {
+        "Main_Road": 4,
+        "Fire_Station": 3,
+        "Blocked_Road": 8,
+        "Accident_Spot": 10
+    },
+
+    "School": {
+        "Main_Road": 5,
+        "Bridge": 6,
+        "Accident_Spot": 9
+    },
+
+    "Police_Station": {
+        "Hospital": 3,
+        "Fire_Station": 4,
+        "Bridge": 2
+    },
+
+    "Bridge": {
+        "Hospital": 4,
+        "Police_Station": 2,
+        "School": 6,
+        "Accident_Spot": 3
+    },
+
+    "Blocked_Road": {
+        "Market": 8,
+        "Accident_Spot": 12
+    },
+
+    "Accident_Spot": {
+        "Hospital": 9,
+        "Market": 10,
+        "School": 9,
+        "Bridge": 3,
+        "Blocked_Road": 12
+    }
+}
+
+
+# Coordinates are used for A* heuristic calculation
+coordinates = {
+    "Rescue_Station": (0, 0),
+    "Hospital": (1, 1),
+    "Main_Road": (2, 0),
+    "Fire_Station": (0, 2),
+    "Police_Station": (2, 2),
+    "Market": (4, 1),
+    "School": (4, -1),
+    "Bridge": (4, 3),
+    "Blocked_Road": (6, 1),
+    "Accident_Spot": (6, 3)
+}
+
+
+# -------------------------------
+# Helper Functions
+# -------------------------------
+
+def normalize_location(name):
+    """
+    This function converts user input into correct format.
+    Example: Rescue Station -> Rescue_Station
+    """
+    return name.strip().replace(" ", "_")
+
+
+def calculate_path_cost(graph, path):
+    """
+    This function calculates total distance/cost of a path.
+    """
+    if path is None:
+        return float("inf")
+
+    total_cost = 0
+
+    for i in range(len(path) - 1):
+        current_node = path[i]
+        next_node = path[i + 1]
+        total_cost += graph[current_node][next_node]
+
+    return total_cost
+
+
+def format_path(path):
+    """
+    This function converts path list into readable form.
+    """
+    if path is None:
+        return "No Path Found"
+
+    return " -> ".join(path)
+
+
+def heuristic(node, goal):
+    """
+    Heuristic function for A*.
+    It estimates distance from current node to goal using coordinates.
+    """
+    x1, y1 = coordinates[node]
+    x2, y2 = coordinates[goal]
+
+    return abs(x1 - x2) + abs(y1 - y2)
+
+
+# -------------------------------
+# BFS Algorithm
+# -------------------------------
+
+def bfs(graph, start, goal):
+    """
+    BFS explores level by level using Queue.
+    It finds a path with fewer edges, but it does not focus on road distance.
+    """
+    queue = deque()
+    queue.append((start, [start]))
+
+    visited = set()
+    explored_nodes = []
+
+    while queue:
+        current_node, path = queue.popleft()
+
+        if current_node not in visited:
+            visited.add(current_node)
+            explored_nodes.append(current_node)
+
+            if current_node == goal:
+                cost = calculate_path_cost(graph, path)
+                return path, cost, len(explored_nodes)
+
+            for neighbor in graph[current_node]:
+                if neighbor not in visited:
+                    new_path = path + [neighbor]
+                    queue.append((neighbor, new_path))
+
+    return None, float("inf"), len(explored_nodes)
+
+
+# -------------------------------
+# DFS Algorithm
+# -------------------------------
+
+def dfs(graph, start, goal):
+    """
+    DFS explores deeply using Stack.
+    It may find a path quickly, but it does not guarantee shortest path.
+    """
+    stack = []
+    stack.append((start, [start]))
+
+    visited = set()
+    explored_nodes = []
+
+    while stack:
+        current_node, path = stack.pop()
+
+        if current_node not in visited:
+            visited.add(current_node)
+            explored_nodes.append(current_node)
+
+            if current_node == goal:
+                cost = calculate_path_cost(graph, path)
+                return path, cost, len(explored_nodes)
+
+            neighbors = list(graph[current_node].keys())
+
+            for neighbor in reversed(neighbors):
+                if neighbor not in visited:
+                    new_path = path + [neighbor]
+                    stack.append((neighbor, new_path))
+
+    return None, float("inf"), len(explored_nodes)
+
+
+# -------------------------------
+# UCS Algorithm
+# -------------------------------
+
+def ucs(graph, start, goal):
+    """
+    UCS always selects the path with the lowest total cost.
+    It is useful for finding the cheapest/shortest route.
+    """
+    priority_queue = []
+    heapq.heappush(priority_queue, (0, start, [start]))
+
+    visited = set()
+    explored_nodes = []
+
+    while priority_queue:
+        current_cost, current_node, path = heapq.heappop(priority_queue)
+
+        if current_node in visited:
+            continue
+
+        visited.add(current_node)
+        explored_nodes.append(current_node)
+
+        if current_node == goal:
+            return path, current_cost, len(explored_nodes)
+
+        for neighbor, distance in graph[current_node].items():
+            if neighbor not in visited:
+                new_cost = current_cost + distance
+                new_path = path + [neighbor]
+                heapq.heappush(priority_queue, (new_cost, neighbor, new_path))
+
+    return None, float("inf"), len(explored_nodes)
+
+
+# -------------------------------
+# A* Algorithm
+# -------------------------------
+
+def a_star(graph, start, goal):
+    """
+    A* uses actual cost + estimated cost.
+    Formula:
+    f(n) = g(n) + h(n)
+
+    g(n) = actual distance from start
+    h(n) = estimated distance to goal
+    """
+    priority_queue = []
+    heapq.heappush(priority_queue, (heuristic(start, goal), 0, start, [start]))
+
+    visited = set()
+    explored_nodes = []
+    best_cost = {start: 0}
+
+    while priority_queue:
+        f_cost, current_cost, current_node, path = heapq.heappop(priority_queue)
+
+        if current_node in visited:
+            continue
+
+        visited.add(current_node)
+        explored_nodes.append(current_node)
+
+        if current_node == goal:
+            return path, current_cost, len(explored_nodes)
+
+        for neighbor, distance in graph[current_node].items():
+            new_cost = current_cost + distance
+
+            if neighbor not in best_cost or new_cost < best_cost[neighbor]:
+                best_cost[neighbor] = new_cost
+                total_estimated_cost = new_cost + heuristic(neighbor, goal)
+                new_path = path + [neighbor]
+
+                heapq.heappush(
+                    priority_queue,
+                    (total_estimated_cost, new_cost, neighbor, new_path)
+                )
+
+    return None, float("inf"), len(explored_nodes)
+
+
+# -------------------------------
+# Main Program
+# -------------------------------
+
+print("======================================")
+print("     Emergency Rescue Path Finder")
+print("======================================")
+
+print("\nAvailable Locations:\n")
+
+for location in city_graph:
+    print("-", location)
+
+start_input = input("\nEnter start location: ")
+goal_input = input("Enter emergency location: ")
+
+start = normalize_location(start_input)
+goal = normalize_location(goal_input)
+
+# Input validation using if-else
+if start not in city_graph:
+    print("\nInvalid start location. Please check the spelling.")
+
+elif goal not in city_graph:
+    print("\nInvalid emergency location. Please check the spelling.")
+
+else:
+    print("\n--- Search Algorithm Comparison ---\n")
+
+    results = []
+
+    bfs_path, bfs_cost, bfs_explored = bfs(city_graph, start, goal)
+    results.append(("BFS", bfs_path, bfs_cost, bfs_explored))
+
+    dfs_path, dfs_cost, dfs_explored = dfs(city_graph, start, goal)
+    results.append(("DFS", dfs_path, dfs_cost, dfs_explored))
+
+    ucs_path, ucs_cost, ucs_explored = ucs(city_graph, start, goal)
+    results.append(("UCS", ucs_path, ucs_cost, ucs_explored))
+
+    astar_path, astar_cost, astar_explored = a_star(city_graph, start, goal)
+    results.append(("A*", astar_path, astar_cost, astar_explored))
+
+    print(f"{'Algorithm':<10} | {'Path':<70} | {'Cost':<5} | {'Nodes Explored':<15}")
+    print("-" * 115)
+
+    for algorithm_name, path, cost, explored in results:
+        path_text = format_path(path)
+
+        if cost == float("inf"):
+            cost_text = "N/A"
+        else:
+            cost_text = str(cost)
+
+        print(f"{algorithm_name:<10} | {path_text:<70} | {cost_text:<5} | {explored:<15}")
+
+    valid_results = []
+
+    for result in results:
+        algorithm_name, path, cost, explored = result
+
+        if path is not None:
+            valid_results.append(result)
+
+    if valid_results:
+        best_algorithm = min(valid_results, key=lambda x: x[2])
+
+        print("\nBest algorithm for shortest emergency route:", best_algorithm[0])
+        print("Best Path:", format_path(best_algorithm[1]))
+        print("Minimum Cost:", best_algorithm[2])
+    else:
+        print("\nNo route found between the selected locations.")
